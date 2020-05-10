@@ -4,13 +4,27 @@
 #include "Language.h"
 #include <map>
 
-#define NLD Node->Left->Elem->Name
-#define NRD Node->Right->Elem->Name
+#define NLD Node->Left->Elem->ElemData
+#define NRD Node->Right->Elem->ElemData
+#define NLN Node->Left->Elem->Name
+#define NRN Node->Right->Elem->Name
 #define NN  Node->Elem->Name
 #define ND  Node->Elem->ElemData
+#define NPE Node->Parent->Elem
+
 
 class Program{
 public:
+    std::map <char*, int> Variables;
+
+    int AddMark()
+    {
+        std::pair <int, int> Temp = {Name_Mark++, Size};
+        Mark.insert(Temp);
+
+        return Name_Mark - 1;
+    }
+
     void Insert(int Value)
     {
         assert(Value >= 0);
@@ -22,12 +36,26 @@ public:
         Size++;
     }
 
+    int GetCurPos()
+    {
+        return Size;
+    }
+
+    void Edit(int Value, int Pos)
+    {
+        assert(Value >= 0);
+
+        Data[Pos] = Value % 256;
+        Pos++;
+        Data[Pos] = Value / 256;
+    }
+
     void Dump()
     {
         fprintf(stderr,
         "\n\n----------------------------------------------------------------------------------------------\n\n");
         printf("Welcome to Dump of Class Program Code\n");
-        printf("If you this, you have fucked up. My congratulations!\n");
+        printf("If you see this, you have fucked up. My congratulations!\n");
         printf("Here is the information about codes\n\n\n");
         for (int index = 0; index <= Size; index += 10){
             printf("[%03d]: %04d %04d %04d %04d %04d %04d %04d %04d %04d %04d\n",index,
@@ -57,6 +85,8 @@ private:
     char * Data = nullptr;
     size_t Size = -1;
     size_t MaxSize = -1;
+    std::map <int, int> Mark;
+    unsigned Name_Mark = 1;
 
     void Add_Mem()
     {
@@ -72,9 +102,15 @@ private:
 void Explore_Tree_x86(Branch* Node);
 void My_Switch_x86 (Branch *Node);
 void Backend_x86(Branch *Root);
+void System_OP_Switch_x86(Branch *Node);
+void Ret_x86(Branch *Node);
 void Math_OP_x86(int ElemData);
+void Compare_x86();
+void Variables_x86(Branch *Node);
+void Assignment_x86(Branch *Node);
 void Scan_Variables(Branch *Node, unsigned &Shift, std::map<char*, int> &Variables);
 void Mem_For_Var(int NumOfVar);
+void Math_Func_x86(Branch *Node);
 void add();
 void sub();
 void mul();
