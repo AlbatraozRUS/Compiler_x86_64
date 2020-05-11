@@ -2,13 +2,13 @@
 class Program Code;
 
 
-//TODO Реализация print, scan, sqrt
+//TODO Реализация print (Проверить), scan, sqrt
 //TODO Проверить работу с метками для if и адресами для call
-//TODO Сделать обработку для ELF файла
-
 
 void Backend_x86(Branch *Root)
 {
+    Make_ELF();
+
     unsigned Shift = 4;
     Scan_Variables(Root, Shift, Code.Variables);
 
@@ -20,6 +20,7 @@ void Backend_x86(Branch *Root)
 
     Code.Insert(72); //sub rsp, 4 * num of variables
     Code.Insert(131);
+    Code.Insert(236);
     Code.Insert(4 * Code.Variables.size());
     Mem_For_Var(Code.Variables.size());
 
@@ -31,7 +32,13 @@ void Backend_x86(Branch *Root)
 
     Code.Insert(93); // pop rbp
 
+    Code.Write_Down();
+
+    //Code.Dump();
+
     Code.~Program();
+
+
 }
 
 
@@ -41,7 +48,7 @@ void Explore_Tree_x86(Branch* Node)
 
     if (NTYPE == MODE_SYSTEM_OP){
 
-        //ASM_SYSTEM_OP(Node, ASM_Out);
+        System_OP_Switch_x86(Node);
 
         if (NTYPE != MODE_CONNECTIONS &&
             NTYPE != MODE_NIL &&
@@ -96,7 +103,7 @@ void My_Switch_x86 (Branch *Node)
         //case MODE_FUNCTION:    {ASM_FUNCTION(Node, ASM_Out);                             break;}
 
 
-        default: {fprintf(stderr, "Problem occurred in My_Switch, please check input.\n"
+        default: {fprintf(stderr, "Problem occurred in My_Switch_x86, please check input.\n"
                                   "Type - %d\nData - %d", NTYPE, ND); abort();}
 
     }
@@ -113,6 +120,8 @@ void System_OP_Switch_x86(Branch *Node)
         case '=':     {Assignment_x86(Node);                return;}
 
         case ret:     {Ret_x86(Node);                       return;}
+
+        case print:   {Print_x86(Node);                     return;}
 
         case If:      {
                        My_Switch_x86(NL->Left);
@@ -135,13 +144,14 @@ void System_OP_Switch_x86(Branch *Node)
                        Code.Insert(0);
                        Code.Insert(0);
                        //Здесь есть проблема с джампами на отрицательный сдвиг и при прыжке вперед меньше чем на 5 бит
-                       Code.Edit(Code.GetCurPos() - Pos, Pos);
+                       Code.Edit_Address(Code.GetCurPos() - Pos, Pos);
                        Pos = Code.GetCurPos();
                        Explore_Tree_x86(NR->Right);
 
-                       Code.Edit(Code.GetCurPos() - Pos, Pos);
+                       Code.Edit_Address(Code.GetCurPos() - Pos, Pos);
 
-                        }
+                       return;}
+
 
 
         default: {fprintf(stderr, "Unknown System operator\n%d\n", ND); abort();}
@@ -156,8 +166,9 @@ void Assignment_x86(Branch *Node)
 
     Code.Insert(88); // pop rax
 
-    Code.Insert(72); //mov [rbp - Shift], rax
-    Code.Insert(135);
+  //  Code.Insert(103); //mov DWORD [rbp - Shift], rax
+    Code.Insert(72);
+    Code.Insert(137);
     Code.Insert(133);
     Code.Insert(256 - Shift);
     Code.Insert(255);
@@ -203,10 +214,12 @@ void Scan_Variables(Branch *Node, unsigned &Shift, std::map<char*, int> &Variabl
             Scan_Variables(NR, Shift, Variables);
 
         if (NL == nullptr && NR == nullptr){
-            if (Variables.find(NN) == Variables.end()){
-                std::pair <char*, int> temp {NN, Shift};
-                Shift += 4;
-                Variables.insert(temp);
+            if (NT == MODE_VARIABLE) {
+                if (Variables.find(NN) == Variables.end()) {
+                    std::pair<char *, int> temp{NN, Shift};
+                    Shift += 4;
+                    Variables.insert(temp);
+                }
             }
         }
     }
@@ -277,6 +290,125 @@ void Math_Func_x86(Branch *Node)
     //Вызов функции квадратного корня и прочего
 }
 
+
+void Print_x86(Branch *Node)
+{
+    //Getting Variable to print
+
+    int Shift = Code.Variables.find(NLN)->second;
+
+    Code.Insert(255); //push [rbp - Shift]
+    Code.Insert(117);
+    Code.Insert(256 - Shift);
+
+    Code.Insert(65); //PRINT
+    Code.Insert(94);
+    Code.Insert(106);
+    Code.Insert(15);
+    Code.Insert(88);
+    Code.Insert(85);
+    Code.Insert(72);
+    Code.Insert(137);
+    Code.Insert(229);
+    Code.Insert(72);
+    Code.Insert(131);
+    Code.Insert(236);
+    Code.Insert(8);
+    Code.Insert(72);
+    Code.Insert(49);
+    Code.Insert(201);
+    Code.Insert(187);
+    Code.Insert(10);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(72);
+    Code.Insert(49);
+    Code.Insert(210);
+    Code.Insert(72);
+    Code.Insert(247);
+    Code.Insert(243);
+    Code.Insert(72);
+    Code.Insert(57);
+    Code.Insert(208);
+    Code.Insert(116);
+    Code.Insert(18);
+    Code.Insert(72);
+    Code.Insert(131);
+    Code.Insert(194);
+    Code.Insert(48);
+    Code.Insert(73);
+    Code.Insert(137);
+    Code.Insert(225);
+    Code.Insert(73);
+    Code.Insert(1);
+    Code.Insert(201);
+    Code.Insert(73);
+    Code.Insert(137);
+    Code.Insert(17);
+    Code.Insert(72);
+    Code.Insert(255);
+    Code.Insert(193);
+    Code.Insert(235);
+    Code.Insert(227);
+    Code.Insert(72);
+    Code.Insert(131);
+    Code.Insert(248);
+    Code.Insert(0);
+    Code.Insert(117);
+    Code.Insert(232);
+    Code.Insert(181);
+    Code.Insert(1);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(72);
+    Code.Insert(137);
+    Code.Insert(230);
+    Code.Insert(72);
+    Code.Insert(1);
+    Code.Insert(206);
+    Code.Insert(72);
+    Code.Insert(255);
+    Code.Insert(206);
+    Code.Insert(191);
+    Code.Insert(1);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(186);
+    Code.Insert(1);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(81);
+    Code.Insert(15);
+    Code.Insert(5);
+    Code.Insert(89);
+    Code.Insert(72);
+    Code.Insert(255);
+    Code.Insert(201);
+    Code.Insert(72);
+    Code.Insert(131);
+    Code.Insert(249);
+    Code.Insert(0);
+    Code.Insert(117);
+    Code.Insert(219);
+    Code.Insert(72);
+    Code.Insert(131);
+    Code.Insert(196);
+    Code.Insert(8);
+    Code.Insert(72);
+    Code.Insert(137);
+    Code.Insert(236);
+    Code.Insert(93);
+    Code.Insert(65);
+    Code.Insert(86);
+    Code.Insert(195);
+
+}
+
+
 void add()
 {
     Code.Insert(88); // pop rax
@@ -330,4 +462,137 @@ void div()
 
     Code.Insert(90); //pop rdx
     Code.Insert(83); // push rbx
+}
+
+void Make_ELF()
+{
+    Code.Insert(127);
+    Code.Insert(69);
+    Code.Insert(76);
+    Code.Insert(70);
+    Code.Insert(2);
+    Code.Insert(1);
+    Code.Insert(1);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(2);
+    Code.Insert(0);
+    Code.Insert(62);
+    Code.Insert(0);
+    Code.Insert(1);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(128);
+    Code.Insert(0);
+    Code.Insert(64);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(64);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(64);
+    Code.Insert(0);
+    Code.Insert(56);
+    Code.Insert(0);
+    Code.Insert(1);
+    Code.Insert(0);
+    Code.Insert(64);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(1);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(5);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(64);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(64);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0); //Size
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);  //Size;
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(32);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+
 }

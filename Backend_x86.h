@@ -11,6 +11,7 @@
 #define NN  Node->Elem->Name
 #define ND  Node->Elem->ElemData
 #define NPE Node->Parent->Elem
+#define NT  Node->Elem->Type
 
 
 class Program{
@@ -41,7 +42,7 @@ public:
         return Size;
     }
 
-    void Edit(int Value, int Pos)
+    void Edit_Address(int Value, int Pos)
     {
         assert(Value >= 0);
 
@@ -50,21 +51,63 @@ public:
         Data[Pos] = Value / 256;
     }
 
+    void Write_Down()
+    {
+        FILE *Output = fopen(Out, "w");
+        assert(Output);
+
+        Exit();
+
+        Data[97] = Size % 256;
+        Data[98] = Size / 256;
+        Data[105] = Size % 256;
+        Data[106] = Size / 256;
+
+        fwrite(Data, sizeof(char), Size, Output);
+
+        fclose(Output);
+    }
+
+    void Exit()
+    {
+        Insert(184); //mov rax, 60
+        Insert(60);
+        Insert(0);
+        Insert(0);
+        Insert(0);
+
+        Insert(72); //xor rdi, rdi
+        Insert(49);
+        Insert(255);
+
+        Insert(15); //syscall
+        Insert(5);
+    }
+
     void Dump()
     {
-        fprintf(stderr,
-        "\n\n----------------------------------------------------------------------------------------------\n\n");
+        printf("\n\n---------------------------------------------------------------------------------------------\n\n");
         printf("Welcome to Dump of Class Program Code\n");
         printf("If you see this, you have fucked up. My congratulations!\n");
-        printf("Here is the information about codes\n\n\n");
-        for (int index = 0; index <= Size; index += 10){
-            printf("[%03d]: %04d %04d %04d %04d %04d %04d %04d %04d %04d %04d\n",index,
+        printf("Here is the information about codes\n\n");
+        printf("Here is ELF_h and Program_h\n\n\n");
+        for (int index = 0; index < 80; index += 10){
+            printf("[%03d]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",index,
                    Data[index + 0], Data[index + 1],Data[index + 2], Data[index + 3], Data[index + 4],
-                   Data[index + 5], Data[index + 6], Data[index + 7], Data[index + 8], Data[index + 9]);
+                   Data[index + 5], Data[index + 6], Data[index + 7], Data[index + 8], Data[index + 9],
+                   Data[index + 10],Data[index + 11], Data[index + 12], Data[index + 13],
+                   Data[index + 14], Data[index + 15]);
+        }
+        printf("\n\nAnd here are the codes of your stupid program!\n\n\n");
+        for (int index = 80; index < Size; index += 10){
+            printf("[%03d]: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X\n",index,
+                   Data[index + 0], Data[index + 1],Data[index + 2], Data[index + 3], Data[index + 4],
+                   Data[index + 5], Data[index + 6], Data[index + 7], Data[index + 8], Data[index + 9],
+                   Data[index + 10],Data[index + 11], Data[index + 12], Data[index + 13],
+                   Data[index + 14], Data[index + 15]);
         }
         printf("\n\nGood luck my friend!\nI hope that we will never meet again!\n\n");
-        fprintf(stderr,
-        "\n\n----------------------------------------------------------------------------------------------\n\n");
+        printf("\n\n--------------------------------------------------------------------------------------------\n\n");
     }
 
     Program()
@@ -76,7 +119,7 @@ public:
 
     ~Program()
     {
-        free(Data);
+        //free(Data);
         Size = -1;
         MaxSize = -1;
     }
@@ -111,6 +154,8 @@ void Assignment_x86(Branch *Node);
 void Scan_Variables(Branch *Node, unsigned &Shift, std::map<char*, int> &Variables);
 void Mem_For_Var(int NumOfVar);
 void Math_Func_x86(Branch *Node);
+void Print_x86(Branch *Node);
+void Make_ELF();
 void add();
 void sub();
 void mul();
