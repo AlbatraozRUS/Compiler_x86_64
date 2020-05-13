@@ -4,25 +4,29 @@ class Program Code;
 
 //TODO Реализация print (Проверить), scan, sqrt
 //TODO Проверить работу с метками для if и адресами для call
+//TODO Обработка адресов
+//TODO Вызов функций
 
 void Backend_x86(Branch *Root)
 {
     Make_ELF();
 
-    unsigned Shift = 4;
-    Scan_Variables(Root, Shift, Code.Variables);
+   // unsigned Shift = 4;
+    //Scan_Variables(Root, Shift, Code.Variables);
+
+    Find_Functions(Root);
 
     Code.Insert(85); // push rbp
 
     Code.Insert(72); //mov rbp, rsp
     Code.Insert(137);
     Code.Insert(229);
-
-    Code.Insert(72); //sub rsp, 4 * num of variables
-    Code.Insert(131);
-    Code.Insert(236);
-    Code.Insert(4 * Code.Variables.size());
-    Mem_For_Var(Code.Variables.size());
+                        //Проблема с глобальными и локальными переменными
+    //Code.Insert(72); //sub rsp, 4 * num of variables
+    //Code.Insert(131);
+    //Code.Insert(236);
+    //Code.Insert(4 * Code.Variables.size());
+    //Mem_For_Var(Code.Variables.size());
 
     Explore_Tree_x86(Root);
 
@@ -100,7 +104,7 @@ void My_Switch_x86 (Branch *Node)
 
         case MODE_NIL:         {                                                         break;}
 
-        //case MODE_FUNCTION:    {ASM_FUNCTION(Node, ASM_Out);                             break;}
+        case MODE_FUNCTION:    {Functions_x86(Node);                                     break;}
 
 
         default: {fprintf(stderr, "Problem occurred in My_Switch_x86, please check input.\n"
@@ -128,7 +132,7 @@ void System_OP_Switch_x86(Branch *Node)
                        My_Switch_x86(NL->Right);
                        Math_OP_x86(NLD);
 
-                       int Pos = Code.GetCurPos();
+                       long int Pos = Code.GetCurPos();
 
                        Code.Insert(0); //Space for Mark`s address
                        Code.Insert(0);
@@ -189,6 +193,57 @@ void Ret_x86(Branch *Node)
 }
 
 
+void Find_Functions(Branch *Node) {
+    for (Branch *Another_Node = NR; Another_Node != nullptr; Another_Node = NR) {
+        if (Another_Node->Left->Elem->Type == MODE_FUNCTION) {
+            Code.Function[Code.Num_Func].Name = NN;
+            int Shift = 4;
+            Scan_Function(Node, &Shift);
+            Code.Num_Func++;
+        }
+    }
+}
+
+void Scan_Function(Branch *Node, int *Shift)
+{
+    if (NL != nullptr)
+        Scan_Function(NL, Shift);
+    if (NR != nullptr)
+        Scan_Function(NR, Shift);
+
+    if (NR == nullptr && NL == nullptr){
+        if (NT == MODE_VARIABLE &&
+        Code.Function[Code.Num_Func].Variables.find(NN) == Code.Function[Code.Num_Func].Variables.end()){
+            std::pair<char*, int> temp = {NN, *Shift};
+            *Shift += 4;
+            Code.Function[Code.Num_Func].Variables.insert(temp);
+        }
+    }
+}
+
+void Functions_x86(Branch *Node)
+{
+    if (Node->Parent->Elem->Type == MODE_CONNECTIONS &&
+        Node->Parent->Elem->ElemData == ';') {
+
+        for (int Func_index = 0; Func_index < Code.Num_Func; Func_index++){
+            if (NN == Code.Function[Func_index].Name)
+                Code.Function[Func_index].Address = Code.GetCurPos();
+        }
+    }
+    Explore_Tree_x86(NL);
+    Code.Insert(232);
+    for (int Func_index = 0; Func_index < Code.Num_Func; Func_index++){
+        if (NN == Code.Function[Func_index].Name)
+            Code.Function[Func_index].Calls[Code.Function[Func_index].Call_Amount++]
+                = Code.GetCurPos();
+    }
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+    Code.Insert(0);
+}
+
 void Variables_x86(Branch *Node)
 {
     if (NPE->Type == MODE_SYSTEM_OP)
@@ -199,7 +254,6 @@ void Variables_x86(Branch *Node)
     Code.Insert(255); //push [rbp - Shift]
     Code.Insert(117);
     Code.Insert(256 - Shift);
-    return;
 }
 
 
@@ -224,6 +278,7 @@ void Scan_Variables(Branch *Node, unsigned &Shift, std::map<char*, int> &Variabl
         }
     }
 
+void ()
 
 void Mem_For_Var(int NumOfVar)
 {
@@ -260,7 +315,7 @@ void Math_OP_x86(int ElemData)
         case '=': {
                    Compare_x86();
                    Code.Insert(15);
-                   Code.Insert(132);
+                   Code.Insert(133);
                    break;}
 
         case '<': {

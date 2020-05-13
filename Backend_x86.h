@@ -13,18 +13,21 @@
 #define NPE Node->Parent->Elem
 #define NT  Node->Elem->Type
 
+const int MaxFuncs = 10;
+
+struct Functions{
+    char *Name = nullptr;
+    int* Calls = nullptr;
+    int Call_Amount = 0;
+    int Address = -1;
+    std::map<char*, int> Variables;
+};
 
 class Program{
 public:
+    struct Functions* Function = nullptr;
     std::map <char*, int> Variables;
-
-    int AddMark()
-    {
-        std::pair <int, int> Temp = {Name_Mark++, Size};
-        Mark.insert(Temp);
-
-        return Name_Mark - 1;
-    }
+    int Num_Func = 0;
 
     void Insert(int Value)
     {
@@ -42,13 +45,12 @@ public:
         return Size;
     }
 
-    void Edit_Address(int Value, int Pos)
+    void Edit_Address(long int Value, int Pos)
     {
-        assert(Value >= 0);
-
-        Data[Pos] = Value % 256;
-        Pos++;
-        Data[Pos] = Value / 256;
+        Data[Pos] = (char) (Value);
+        Data[Pos + 1] = (char) (Value >> 8);
+        Data[Pos + 2] = (char) (Value >> 16);
+        Data[Pos + 3] = (char) (Value >> 24);
     }
 
     void Write_Down()
@@ -112,6 +114,7 @@ public:
 
     Program()
     {
+        Function = (Functions*) calloc(MaxFuncs, sizeof(Functions));
         Data = (char*) calloc(100000, sizeof(char));
         MaxSize = 100000;
         Size = 0;
@@ -125,6 +128,7 @@ public:
     }
 
 private:
+
     char * Data = nullptr;
     size_t Size = -1;
     size_t MaxSize = -1;
@@ -141,11 +145,13 @@ private:
 
 
 
-
+void Scan_Function(Branch *Node, int *Shift);
+void Find_Functions(Branch *Node);
 void Explore_Tree_x86(Branch* Node);
 void My_Switch_x86 (Branch *Node);
 void Backend_x86(Branch *Root);
 void System_OP_Switch_x86(Branch *Node);
+void Functions_x86(Branch *Node);
 void Ret_x86(Branch *Node);
 void Math_OP_x86(int ElemData);
 void Compare_x86();
