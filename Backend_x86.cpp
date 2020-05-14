@@ -2,10 +2,9 @@
 class Program Code;
 
 
-//TODO Реализация print (Проверить), scan, sqrt
-//TODO Проверить работу с метками для if и адресами для call
-//TODO Обработка адресов
-//TODO Вызов функций
+//TODO sqrt
+//TODO Проверить работу адресами для call
+//TODO Вызов функций проверить
 
 void Backend_x86(Branch *Root)
 {
@@ -16,11 +15,11 @@ void Backend_x86(Branch *Root)
 
     Find_Functions(Root);
 
-    Code.Insert(85); // push rbp
+   // Code.Insert(85); // push rbp
 
-    Code.Insert(72); //mov rbp, rsp
-    Code.Insert(137);
-    Code.Insert(229);
+   // Code.Insert(72); //mov rbp, rsp
+    //Code.Insert(137);
+    //Code.Insert(229);
                         //Проблема с глобальными и локальными переменными
     //Code.Insert(72); //sub rsp, 4 * num of variables
     //Code.Insert(131);
@@ -30,11 +29,11 @@ void Backend_x86(Branch *Root)
 
     Explore_Tree_x86(Root);
 
-    Code.Insert(72); //mov rsp, rbp
-    Code.Insert(137);
-    Code.Insert(236);
+//    Code.Insert(72); //mov rsp, rbp
+//    Code.Insert(137);
+//    Code.Insert(236);
 
-    Code.Insert(93); // pop rbp
+    //Code.Insert(93); // pop rbp
 
     Code.Write_Down();
 
@@ -59,6 +58,11 @@ void Explore_Tree_x86(Branch* Node)
             Node->Elem->ElemData != oper)
 
             return;
+    }
+
+    if (NTYPE == MODE_FUNCTION){
+        Functions_x86(Node);
+        return;
     }
 
 //    if (Node->Elem->Name != nullptr){
@@ -96,7 +100,7 @@ void My_Switch_x86 (Branch *Node)
 
         case MODE_CONNECTIONS: {                                                         break;}
 
-        case MODE_NUMBER:      {Code.Insert(106); Code.Insert(ND);                       break;}
+        case MODE_NUMBER:      {Code.Insert(0x6A); Code.Insert(ND);                       break;}
 
         case MODE_VARIABLE:    {Variables_x86(Node);                                     break;}
 
@@ -123,23 +127,27 @@ void System_OP_Switch_x86(Branch *Node)
 
         case '=':     {Assignment_x86(Node);                return;}
 
-        case ret:     {Ret_x86(Node);                       return;}
+        case ret:     {Variables_x86(NL); Ret_x86(Node);    return;}
 
-        case print:   {Print_x86(Node);                     return;}
+        case print:   {Variables_x86(NL); Print_x86();      return;}
+
+        case scan:    {Scan_x86(); Assignment_x86(Node);    return;}
 
         case If:      {
                        My_Switch_x86(NL->Left);
                        My_Switch_x86(NL->Right);
-                       Math_OP_x86(NLD);
 
-                       long int Pos = Code.GetCurPos();
+                       Math_OP_x86(NLD);
 
                        Code.Insert(0); //Space for Mark`s address
                        Code.Insert(0);
                        Code.Insert(0);
                        Code.Insert(0);
 
+                       long int Pos_1 = Code.GetCurPos();
+
                        Explore_Tree_x86(NR->Left);
+
 
                        Code.Insert(233); //jmp
 
@@ -147,12 +155,13 @@ void System_OP_Switch_x86(Branch *Node)
                        Code.Insert(0);
                        Code.Insert(0);
                        Code.Insert(0);
-                       //Здесь есть проблема с джампами на отрицательный сдвиг и при прыжке вперед меньше чем на 5 бит
-                       Code.Edit_Address(Code.GetCurPos() - Pos, Pos);
-                       Pos = Code.GetCurPos();
+                       long int Pos_2 = Code.GetCurPos();
+
+                       Code.Edit_Address(Code.GetCurPos() - Pos_1, Pos_1 - 4);
+
                        Explore_Tree_x86(NR->Right);
 
-                       Code.Edit_Address(Code.GetCurPos() - Pos, Pos);
+                       Code.Edit_Address(Code.GetCurPos() - Pos_2, Pos_2 - 4);
 
                        return;}
 
@@ -165,40 +174,34 @@ void System_OP_Switch_x86(Branch *Node)
 void Assignment_x86(Branch *Node)
 {
     //Нельзя присвоить значение одной переменной другой
-    int Shift = Code.Variables.find(NLN)->second;
+    int Shift = Code.Function[Code.Cur_Func].Find_Variable(NLN);
     My_Switch_x86(NR);
 
     Code.Insert(88); // pop rax
 
-  //  Code.Insert(103); //mov DWORD [rbp - Shift], rax
-    Code.Insert(72);
-    Code.Insert(137);
-    Code.Insert(133);
+    Code.Insert(0x48); // mov [rbp - Shift], rax
+    Code.Insert(0x89);
+    Code.Insert(0x85);
     Code.Insert(256 - Shift);
-    Code.Insert(255);
-    Code.Insert(255);
-    Code.Insert(255);
+    Code.Insert(0xFF);
+    Code.Insert(0xFF);
+    Code.Insert(0xFF);
 }
 
 void Ret_x86(Branch *Node)
 {
-    int Shift = Code.Variables.find(NN)->second;
-
-    Code.Insert(72); //mov rax, [rbp - Shift]
-    Code.Insert(139);
-    Code.Insert(69);
-    Code.Insert(256 - Shift);
+    Code.Insert(0x58); //pop rax
 
     Code.Insert(195); //ret
 }
 
 
 void Find_Functions(Branch *Node) {
-    for (Branch *Another_Node = NR; Another_Node != nullptr; Another_Node = NR) {
+    for (Branch *Another_Node = NR; Another_Node->Left != nullptr; Another_Node = Another_Node->Right) {
         if (Another_Node->Left->Elem->Type == MODE_FUNCTION) {
-            Code.Function[Code.Num_Func].Name = NN;
-            int Shift = 4;
-            Scan_Function(Node, &Shift);
+            Code.Function[Code.Num_Func].Name = Another_Node->Left->Elem->Name;
+            int Shift = 8;
+            Scan_Function(Another_Node->Left, &Shift);
             Code.Num_Func++;
         }
     }
@@ -213,31 +216,96 @@ void Scan_Function(Branch *Node, int *Shift)
 
     if (NR == nullptr && NL == nullptr){
         if (NT == MODE_VARIABLE &&
-        Code.Function[Code.Num_Func].Variables.find(NN) == Code.Function[Code.Num_Func].Variables.end()){
-            std::pair<char*, int> temp = {NN, *Shift};
-            *Shift += 4;
-            Code.Function[Code.Num_Func].Variables.insert(temp);
+        Code.Function[Code.Num_Func].Find_Variable(NN) == NoSuchVars){
+            Code.Function[Code.Num_Func].Variables[Code.Function[Code.Num_Func].Amount_Variables].Shift = *Shift;
+            Code.Function[Code.Num_Func].Variables[Code.Function[Code.Num_Func].Amount_Variables].Name = NN;
+            Code.Function[Code.Num_Func].Amount_Variables++;
+            *Shift += 8;
         }
     }
 }
 
 void Functions_x86(Branch *Node)
 {
+    Code.Cur_Func = Code.Which_Func(Node);
+
+    if (Node->Parent->Parent->Parent == nullptr){ // main
+
+        int Shift = Code.Function[Code.Cur_Func].Amount_Variables;
+
+        Code.Insert(0x55); //push rbp
+
+        Code.Insert(0x48); //mov rbp, rsp
+        Code.Insert(0x89);
+        Code.Insert(0xE5);
+
+        Code.Insert(0x48); // sub rsp, Shift
+        Code.Insert(0x83);
+        Code.Insert(0xEC);
+        Code.Insert(8 * Shift);
+
+        Explore_Tree_x86(NR);
+
+        Code.Insert(0x48); //mov rsp, rbp
+        Code.Insert(0x89);
+        Code.Insert(0xEC);
+
+        Code.Insert(0x5D); //pop rbp
+
+        return;
+    }
+
     if (Node->Parent->Elem->Type == MODE_CONNECTIONS &&
         Node->Parent->Elem->ElemData == ';') {
 
-        for (int Func_index = 0; Func_index < Code.Num_Func; Func_index++){
-            if (NN == Code.Function[Func_index].Name)
-                Code.Function[Func_index].Address = Code.GetCurPos();
-        }
+        Code.Function[Code.Cur_Func].Address = Code.GetCurPos();
+
+        Code.Insert(0x41); //pop r14
+        Code.Insert(0x5E);
+
+        Code.Insert(0x48); //sub rsp, 4 * amount_loc
+        Code.Insert(0x83);
+        Code.Insert(0xEC);
+        Code.Insert(8 * (Code.Function[Code.Cur_Func].Amount_Variables - GetAmountOfExternVars(NL)));
+
+        Code.Insert(0x41); //push r14
+        Code.Insert(0x56);
+
+        Code.Insert(0x55); //push rbp
+
+        Code.Insert(0x48); //mov rbp, rsp
+        Code.Insert(0x89);
+        Code.Insert(0xE5);
+
+        Code.Insert(0x48); //add rbp, 16 + 4 * (amount_loc + amount_extern)
+        Code.Insert(0x83);
+        Code.Insert(0xC5);
+        Code.Insert(16 + 8 * (Code.Function[Code.Cur_Func].Amount_Variables));
+
+        Explore_Tree_x86(NR);
+
+        Code.Insert(0x5D); //pop rbp
+
+        Code.Insert(0x41); // pop r14
+        Code.Insert(0x5E);
+
+        Code.Insert(0x48); // add rsp, 4 * (amount_loc + amount_extern)
+        Code.Insert(0x83);
+        Code.Insert(0xC4);
+        Code.Insert(8 * (Code.Function[Code.Cur_Func].Amount_Variables));
+
+        Code.Insert(0x41); // push r14
+        Code.Insert(0x56);
+
+        Code.Insert(0xC3); // ret
+
+        return;
     }
+
     Explore_Tree_x86(NL);
     Code.Insert(232);
-    for (int Func_index = 0; Func_index < Code.Num_Func; Func_index++){
-        if (NN == Code.Function[Func_index].Name)
-            Code.Function[Func_index].Calls[Code.Function[Func_index].Call_Amount++]
-                = Code.GetCurPos();
-    }
+
+    Code.Function[Code.Which_Func(Node)].Calls[Code.Function[Code.Which_Func(Node)].Call_Amount++] = Code.GetCurPos();
     Code.Insert(0);
     Code.Insert(0);
     Code.Insert(0);
@@ -246,16 +314,26 @@ void Functions_x86(Branch *Node)
 
 void Variables_x86(Branch *Node)
 {
-    if (NPE->Type == MODE_SYSTEM_OP)
+    if (NPE->Type == MODE_SYSTEM_OP && (NPE->ElemData == scan || NPE->ElemData == '='))
         return;
 
-    int Shift = Code.Variables.find(NN)->second;
+    int Shift = Code.Function[Code.Cur_Func].Find_Variable(NN);
 
     Code.Insert(255); //push [rbp - Shift]
     Code.Insert(117);
     Code.Insert(256 - Shift);
 }
 
+int GetAmountOfExternVars(Branch *Node)
+{
+    int Sum = 0;
+
+    for (Branch* AnotherNode = Node; AnotherNode != nullptr; AnotherNode = AnotherNode->Left)
+        if (AnotherNode->Elem->Type == MODE_VARIABLE)
+            Sum++;
+
+    return Sum;
+}
 
 void Scan_Variables(Branch *Node, unsigned &Shift, std::map<char*, int> &Variables)
     {
@@ -271,18 +349,17 @@ void Scan_Variables(Branch *Node, unsigned &Shift, std::map<char*, int> &Variabl
             if (NT == MODE_VARIABLE) {
                 if (Variables.find(NN) == Variables.end()) {
                     std::pair<char *, int> temp{NN, Shift};
-                    Shift += 4;
+                    Shift += 8;
                     Variables.insert(temp);
                 }
             }
         }
     }
 
-void ()
 
 void Mem_For_Var(int NumOfVar)
 {
-    for (int Shift = -4, index = 0; index < NumOfVar; index++, Shift -= 4) {
+    for (int Shift = -8, index = 0; index < NumOfVar; index++, Shift -= 8) {
         Code.Insert(199); //mov dword ptr [rbp - num], 0
         Code.Insert(69);
         Code.Insert(256 + Shift);
@@ -346,121 +423,226 @@ void Math_Func_x86(Branch *Node)
 }
 
 
-void Print_x86(Branch *Node)
+void Scan_x86()
 {
-    //Getting Variable to print
+    Code.Insert(0x56);
+    Code.Insert(0x57);
+    Code.Insert(0x41);
+    Code.Insert(0x51);
+    Code.Insert(0x52);
+    Code.Insert(0x55);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xE5);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xEC);
+    Code.Insert(0x08);
+    Code.Insert(0xBF);
+    Code.Insert(0x02);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xE6);
+    Code.Insert(0xBA);
+    Code.Insert(0x08);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x48);
+    Code.Insert(0x31);
+    Code.Insert(0xC0);
+    Code.Insert(0x0F);
+    Code.Insert(0x05);
+    Code.Insert(0x48);
+    Code.Insert(0xFF);
+    Code.Insert(0xCE);
+    Code.Insert(0x48);
+    Code.Insert(0xFF);
+    Code.Insert(0xC6);
+    Code.Insert(0x8A);
+    Code.Insert(0x16);
+    Code.Insert(0x80);
+    Code.Insert(0xFA);
+    Code.Insert(0x0A);
+    Code.Insert(0x75);
+    Code.Insert(0xF6);
+    Code.Insert(0xBF);
+    Code.Insert(0x01);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x4D);
+    Code.Insert(0x31);
+    Code.Insert(0xC9);
+    Code.Insert(0x48);
+    Code.Insert(0xFF);
+    Code.Insert(0xCE);
+    Code.Insert(0x48);
+    Code.Insert(0x31);
+    Code.Insert(0xC0);
+    Code.Insert(0x8A);
+    Code.Insert(0x06);
+    Code.Insert(0x2C);
+    Code.Insert(0x30);
+    Code.Insert(0x48);
+    Code.Insert(0xF7);
+    Code.Insert(0xE7);
+    Code.Insert(0x49);
+    Code.Insert(0x01);
+    Code.Insert(0xC1);
+    Code.Insert(0x48);
+    Code.Insert(0x39);
+    Code.Insert(0xE6);
+    Code.Insert(0x74);
+    Code.Insert(0x10);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xF8);
+    Code.Insert(0xBF);
+    Code.Insert(0x0A);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x48);
+    Code.Insert(0xF7);
+    Code.Insert(0xE7);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xC7);
+    Code.Insert(0xEB);
+    Code.Insert(0xDB);
+    Code.Insert(0x4C);
+    Code.Insert(0x89);
+    Code.Insert(0xC8);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xC4);
+    Code.Insert(0x08);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xEC);
+    Code.Insert(0x5D);
+    Code.Insert(0x5A);
+    Code.Insert(0x41);
+    Code.Insert(0x59);
+    Code.Insert(0x5F);
+    Code.Insert(0x5E);
+    Code.Insert(0x50);
+}
 
-    int Shift = Code.Variables.find(NLN)->second;
-
-    Code.Insert(255); //push [rbp - Shift]
-    Code.Insert(117);
-    Code.Insert(256 - Shift);
-
-    Code.Insert(65); //PRINT
-    Code.Insert(94);
-    Code.Insert(106);
-    Code.Insert(15);
-    Code.Insert(88);
-    Code.Insert(85);
-    Code.Insert(72);
-    Code.Insert(137);
-    Code.Insert(229);
-    Code.Insert(72);
-    Code.Insert(131);
-    Code.Insert(236);
-    Code.Insert(8);
-    Code.Insert(72);
-    Code.Insert(49);
-    Code.Insert(201);
-    Code.Insert(187);
-    Code.Insert(10);
-    Code.Insert(0);
-    Code.Insert(0);
-    Code.Insert(0);
-    Code.Insert(72);
-    Code.Insert(49);
-    Code.Insert(210);
-    Code.Insert(72);
-    Code.Insert(247);
-    Code.Insert(243);
-    Code.Insert(72);
-    Code.Insert(57);
-    Code.Insert(208);
-    Code.Insert(116);
-    Code.Insert(18);
-    Code.Insert(72);
-    Code.Insert(131);
-    Code.Insert(194);
-    Code.Insert(48);
-    Code.Insert(73);
-    Code.Insert(137);
-    Code.Insert(225);
-    Code.Insert(73);
-    Code.Insert(1);
-    Code.Insert(201);
-    Code.Insert(73);
-    Code.Insert(137);
-    Code.Insert(17);
-    Code.Insert(72);
-    Code.Insert(255);
-    Code.Insert(193);
-    Code.Insert(235);
-    Code.Insert(227);
-    Code.Insert(72);
-    Code.Insert(131);
-    Code.Insert(248);
-    Code.Insert(0);
-    Code.Insert(117);
-    Code.Insert(232);
-    Code.Insert(181);
-    Code.Insert(1);
-    Code.Insert(0);
-    Code.Insert(0);
-    Code.Insert(0);
-    Code.Insert(72);
-    Code.Insert(137);
-    Code.Insert(230);
-    Code.Insert(72);
-    Code.Insert(1);
-    Code.Insert(206);
-    Code.Insert(72);
-    Code.Insert(255);
-    Code.Insert(206);
-    Code.Insert(191);
-    Code.Insert(1);
-    Code.Insert(0);
-    Code.Insert(0);
-    Code.Insert(0);
-    Code.Insert(186);
-    Code.Insert(1);
-    Code.Insert(0);
-    Code.Insert(0);
-    Code.Insert(0);
-    Code.Insert(81);
-    Code.Insert(15);
-    Code.Insert(5);
-    Code.Insert(89);
-    Code.Insert(72);
-    Code.Insert(255);
-    Code.Insert(201);
-    Code.Insert(72);
-    Code.Insert(131);
-    Code.Insert(249);
-    Code.Insert(0);
-    Code.Insert(117);
-    Code.Insert(219);
-    Code.Insert(72);
-    Code.Insert(131);
-    Code.Insert(196);
-    Code.Insert(8);
-    Code.Insert(72);
-    Code.Insert(137);
-    Code.Insert(236);
-    Code.Insert(93);
-    Code.Insert(65);
-    Code.Insert(86);
-    Code.Insert(195);
-
+void Print_x86()// Изменить получение переменной
+{
+    Code.Insert(0x58);
+    Code.Insert(0x55);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xE5);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xEC);
+    Code.Insert(0x08);
+    Code.Insert(0x48);
+    Code.Insert(0x31);
+    Code.Insert(0xC9);
+    Code.Insert(0xBB);
+    Code.Insert(0x0A);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xF8);
+    Code.Insert(0x00);
+    Code.Insert(0x74);
+    Code.Insert(0x1D);
+    Code.Insert(0x48);
+    Code.Insert(0x31);
+    Code.Insert(0xD2);
+    Code.Insert(0x48);
+    Code.Insert(0xF7);
+    Code.Insert(0xF3);
+    Code.Insert(0x48);
+    Code.Insert(0x39);
+    Code.Insert(0xD0);
+    Code.Insert(0x74);
+    Code.Insert(0x17);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xC2);
+    Code.Insert(0x30);
+    Code.Insert(0x49);
+    Code.Insert(0x89);
+    Code.Insert(0xE1);
+    Code.Insert(0x49);
+    Code.Insert(0x01);
+    Code.Insert(0xC9);
+    Code.Insert(0x49);
+    Code.Insert(0x89);
+    Code.Insert(0x11);
+    Code.Insert(0x48);
+    Code.Insert(0xFF);
+    Code.Insert(0xC1);
+    Code.Insert(0xEB);
+    Code.Insert(0xE3);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xC2);
+    Code.Insert(0xEB);
+    Code.Insert(0xE9);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xF8);
+    Code.Insert(0x00);
+    Code.Insert(0x75);
+    Code.Insert(0xE3);
+    Code.Insert(0xB8);
+    Code.Insert(0x01);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xE6);
+    Code.Insert(0x48);
+    Code.Insert(0x01);
+    Code.Insert(0xCE);
+    Code.Insert(0x48);
+    Code.Insert(0xFF);
+    Code.Insert(0xCE);
+    Code.Insert(0xBF);
+    Code.Insert(0x01);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0xBA);
+    Code.Insert(0x01);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x51);
+    Code.Insert(0x0F);
+    Code.Insert(0x05);
+    Code.Insert(0x59);
+    Code.Insert(0x48);
+    Code.Insert(0xFF);
+    Code.Insert(0xC9);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xF9);
+    Code.Insert(0x00);
+    Code.Insert(0x75);
+    Code.Insert(0xDB);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xC4);
+    Code.Insert(0x08);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xEC);
+    Code.Insert(0x5D);
 }
 
 
@@ -651,3 +833,4 @@ void Make_ELF()
     Code.Insert(0);
 
 }
+

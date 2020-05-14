@@ -3,6 +3,7 @@
 
 #include "Language.h"
 #include <map>
+#include <string>
 
 #define NLD Node->Left->Elem->ElemData
 #define NRD Node->Right->Elem->ElemData
@@ -14,20 +15,43 @@
 #define NT  Node->Elem->Type
 
 const int MaxFuncs = 10;
+const int NoSuchVars = -1;
+
+struct Vars{
+    char *Name = nullptr;
+    int  Shift = -1;
+};
+
 
 struct Functions{
+public:
     char *Name = nullptr;
+    int Address = -1;
+
     int* Calls = nullptr;
     int Call_Amount = 0;
-    int Address = -1;
-    std::map<char*, int> Variables;
+
+    struct Vars* Variables = nullptr;
+    int Amount_Variables   = 0;
+
+    int Find_Variable(char *Value)
+    {
+        for (int index = 0; index < Amount_Variables; index++) {
+            if (strcmp(Variables[index].Name, Value) == 0) {
+                return Variables[index].Shift;
+            }
+        }
+        return NoSuchVars;
+    }
 };
+
+
 
 class Program{
 public:
     struct Functions* Function = nullptr;
-    std::map <char*, int> Variables;
     int Num_Func = 0;
+    int Cur_Func = -1;
 
     void Insert(int Value)
     {
@@ -51,6 +75,16 @@ public:
         Data[Pos + 1] = (char) (Value >> 8);
         Data[Pos + 2] = (char) (Value >> 16);
         Data[Pos + 3] = (char) (Value >> 24);
+    }
+
+    int Which_Func (Branch *Node)
+    {
+        for (int Func_index = 0; Func_index < Num_Func; Func_index++) {
+            if (strcmp(NN, Function[Func_index].Name) == 0)
+                return Func_index;
+        }
+        printf("Function %s was not Found!\n", NN);
+        abort();
     }
 
     void Write_Down()
@@ -115,8 +149,12 @@ public:
     Program()
     {
         Function = (Functions*) calloc(MaxFuncs, sizeof(Functions));
-        Data = (char*) calloc(100000, sizeof(char));
-        MaxSize = 100000;
+        for (int index = 0; index < MaxFuncs; index++){
+            Function[index].Variables = (Vars*) calloc(40, sizeof(Vars));
+            Function[index].Calls     = (int *) calloc(100, sizeof(int));
+        }
+        Data = (char*) calloc(5000, sizeof(char));
+        MaxSize = 5000;
         Size = 0;
     }
 
@@ -132,8 +170,6 @@ private:
     char * Data = nullptr;
     size_t Size = -1;
     size_t MaxSize = -1;
-    std::map <int, int> Mark;
-    unsigned Name_Mark = 1;
 
     void Add_Mem()
     {
@@ -160,7 +196,9 @@ void Assignment_x86(Branch *Node);
 void Scan_Variables(Branch *Node, unsigned &Shift, std::map<char*, int> &Variables);
 void Mem_For_Var(int NumOfVar);
 void Math_Func_x86(Branch *Node);
-void Print_x86(Branch *Node);
+void Print_x86();
+void Scan_x86();
+int GetAmountOfExternVars(Branch *Node);
 void Make_ELF();
 void add();
 void sub();
