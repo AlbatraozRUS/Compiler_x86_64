@@ -1,8 +1,7 @@
 #include "Backend_x86.h"
 class Program Code;
 
-
-//TODO DEBUG
+//TODO Добавить работу с числами с плавающей точкой
 
 void Backend_x86(Branch *Root)
 {
@@ -149,23 +148,15 @@ void System_OP_Switch_x86(Branch *Node)
 
 void Number_x86(Branch *Node)
 {
-    if (ND < 128 && ND >= 0) {
-        Code.Insert(0x6A);
-        Code.Insert(ND);
-        return;
-    }
-
     Code.Insert(0x68);
-    Code.Insert(ND);
-    Code.Insert(ND >> 8);
-    Code.Insert(ND >> 16);
-    Code.Insert(ND >> 24);
+    Code.Insert(ND * 100);
+    Code.Insert((100 *ND) >> 8);
+    Code.Insert((100 *ND) >> 16);
+    Code.Insert((100 *ND) >> 24);
 }
 
 void Assignment_x86(Branch *Node)
 {
-
-    //Нельзя присвоить значение одной переменной другой
     int Shift = Code.Function[Code.Cur_Func].Find_Variable(NLN);
     Explore_Tree_x86(NR);
     if (NR->Elem->Type != MODE_FUNCTION)
@@ -183,8 +174,6 @@ void Assignment_x86(Branch *Node)
 void Ret_x86(Branch *Node)
 {
     Code.Insert(0x58); //pop rax
-
-   // Code.Insert(195); //ret
 }
 
 
@@ -309,12 +298,6 @@ void Functions_x86(Branch *Node)
     Code.Insert(0x00);
 
     Code.Function[Code.Which_Func(Node)].Calls[Code.Function[Code.Which_Func(Node)].Call_Amount++] = Code.GetCurPos();
-
-//    Code.Insert(0x48); //add rsp, 8 * (amount_extern_vars)
-//    Code.Insert(0x83);
-//    Code.Insert(0xC4);
-//    Code.Insert(8 * (Amount_Ex_Vars_2 - Amount_Ex_Vars_1) / 3);
-
 }
 
 void Variables_x86(Branch *Node)
@@ -352,29 +335,50 @@ void Math_OP_x86(Branch *Node)
 
         case '+': {add();          break;}
 
-        case '-': { sub();         break;}
+        case '-': {sub();         break;}
 
         case '/': {div();          break;}
 
         case '*': { mul();         break;}
 
         case '<': {
-                   Compare_x86();
-                   Code.Insert(0x0F);
-                   Code.Insert(0x83);
-                   break;}
+                    Compare_x86();
+                    Code.Insert(0x48); //cmp rax, 3100h
+                    Code.Insert(0x3D);
+                    Code.Insert(0x00);
+                    Code.Insert(0x31);
+                    Code.Insert(0x00);
+                    Code.Insert(0x00);
+
+                    Code.Insert(0x0F); //je
+                    Code.Insert(0x84);
+                    break;}
 
         case '=': {
-                   Compare_x86();
-                   Code.Insert(15);
-                   Code.Insert(133);
-                   break;}
+                    Compare_x86();
+                    Code.Insert(0x48); //cmp rax, 7000h
+                    Code.Insert(0x3D);
+                    Code.Insert(0x00);
+                    Code.Insert(0x70);
+                    Code.Insert(0x00);
+                    Code.Insert(0x00);
+
+                    Code.Insert(0x0F); //jne
+                    Code.Insert(0x85);
+                    break;}
 
         case '>': {
-                   Compare_x86();
-                   Code.Insert(0x0F);
-                   Code.Insert(0x86);
-                   break;}
+                    Compare_x86();
+                    Code.Insert(0x48); //cmp rax, 3100h
+                    Code.Insert(0x3D);
+                    Code.Insert(0x00);
+                    Code.Insert(0x30);
+                    Code.Insert(0x00);
+                    Code.Insert(0x00);
+
+                    Code.Insert(0x0F); //je
+                    Code.Insert(0x84);
+                    break;}
 
 
         default: {fprintf(stderr, "Unknown Math operator\n[%d] %c\n", ND, ND); abort();}
@@ -384,30 +388,79 @@ void Math_OP_x86(Branch *Node)
 
 void Compare_x86()
 {
-    Code.Insert(91); //pop rbx
-    Code.Insert(88); //pop rax
+    Code.Insert(0x48); //xor rax, rax
+    Code.Insert(0x31);
+    Code.Insert(0xC0);
 
-    Code.Insert(72); //cmp rax, rbx
-    Code.Insert(57);
-    Code.Insert(216);
+    Code.Insert(0x9B); //wait
+
+    Code.Insert(0xDB); //finit
+    Code.Insert(0xE3);
+
+    Code.Insert(0xDB); //fild dword [rsp + 8]
+    Code.Insert(0x44);
+    Code.Insert(0x24);
+    Code.Insert(0x08);
+
+    Code.Insert(0xDB); //fild dword [rsp]
+    Code.Insert(0x04);
+    Code.Insert(0x24);
+
+    Code.Insert(0xD8); //fcom st(1)
+    Code.Insert(0xD1);
+
+    Code.Insert(0x9B); //wait
+
+    Code.Insert(0xDF); //fnswtsw ax
+    Code.Insert(0xE0);
+
+    Code.Insert(0x48); //add rsp, 16
+    Code.Insert(0x83);
+    Code.Insert(0xC4);
+    Code.Insert(0x10);
 }
 
 void Math_Func_x86(Branch *Node)
 {
-    //TODO Работа только для вычислении квадратного корня
 
-    Code.Insert(0x9B); //finit
-    Code.Insert(0xDB);
+    Code.Insert(0x6A); //push 10
+    Code.Insert(0x0A);
+
+    Code.Insert(0x9B); //fwait
+
+    Code.Insert(0xDB); //finit
     Code.Insert(0xE3);
 
-    Code.Insert(0xDF);  //fild QWORD [rsp]
-    Code.Insert(0x2C);
+    Code.Insert(0xDB);  //fild DWORD [rsp]
+    Code.Insert(0x44);
     Code.Insert(0x24);
+    Code.Insert(0x08);
 
     Code.Insert(0xD9);  //fsqrt
     Code.Insert(0xFA);
 
     Code.Insert(0x9B);  //fwait
+
+    Code.Insert(0xDA); //fimul dword [rsp]
+    Code.Insert(0x0C);
+    Code.Insert(0x24);
+
+    Code.Insert(0xD9); //frndint
+    Code.Insert(0xFC);
+
+    Code.Insert(0x48); //add rsp, 8
+    Code.Insert(0x83);
+    Code.Insert(0xC4);
+    Code.Insert(0x08);
+
+    Code.Insert(0x48); //mov qword [rsp], 0
+    Code.Insert(0xC7);
+    Code.Insert(0x04);
+    Code.Insert(0x24);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
 
     Code.Insert(0xDB); //fist dword [rsp]
     Code.Insert(0x14);
@@ -421,6 +474,7 @@ void Scan_x86()
     Code.Insert(0x41);
     Code.Insert(0x51);
     Code.Insert(0x52);
+    Code.Insert(0x51);
     Code.Insert(0x55);
     Code.Insert(0x48);
     Code.Insert(0x89);
@@ -428,7 +482,7 @@ void Scan_x86()
     Code.Insert(0x48);
     Code.Insert(0x83);
     Code.Insert(0xEC);
-    Code.Insert(0x08);
+    Code.Insert(0x10);
     Code.Insert(0xBF);
     Code.Insert(0x02);
     Code.Insert(0x00);
@@ -438,7 +492,7 @@ void Scan_x86()
     Code.Insert(0x89);
     Code.Insert(0xE6);
     Code.Insert(0xBA);
-    Code.Insert(0x08);
+    Code.Insert(0x10);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
@@ -448,8 +502,20 @@ void Scan_x86()
     Code.Insert(0x0F);
     Code.Insert(0x05);
     Code.Insert(0x48);
-    Code.Insert(0xFF);
-    Code.Insert(0xCE);
+    Code.Insert(0x31);
+    Code.Insert(0xC9);
+    Code.Insert(0x8A);
+    Code.Insert(0x16);
+    Code.Insert(0x80);
+    Code.Insert(0xFA);
+    Code.Insert(0x2D);
+    Code.Insert(0x75);
+    Code.Insert(0x05);
+    Code.Insert(0xB9);
+    Code.Insert(0x01);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
     Code.Insert(0x48);
     Code.Insert(0xFF);
     Code.Insert(0xC6);
@@ -476,6 +542,10 @@ void Scan_x86()
     Code.Insert(0xC0);
     Code.Insert(0x8A);
     Code.Insert(0x06);
+    Code.Insert(0x3C);
+    Code.Insert(0x2E);
+    Code.Insert(0x74);
+    Code.Insert(0xF4);
     Code.Insert(0x2C);
     Code.Insert(0x30);
     Code.Insert(0x48);
@@ -485,8 +555,14 @@ void Scan_x86()
     Code.Insert(0x01);
     Code.Insert(0xC1);
     Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xC8);
+    Code.Insert(0x48);
+    Code.Insert(0x01);
+    Code.Insert(0xE0);
+    Code.Insert(0x48);
     Code.Insert(0x39);
-    Code.Insert(0xE6);
+    Code.Insert(0xC6);
     Code.Insert(0x74);
     Code.Insert(0x10);
     Code.Insert(0x48);
@@ -504,18 +580,34 @@ void Scan_x86()
     Code.Insert(0x89);
     Code.Insert(0xC7);
     Code.Insert(0xEB);
-    Code.Insert(0xDB);
+    Code.Insert(0xD1);
+    Code.Insert(0x4C);
+    Code.Insert(0x89);
+    Code.Insert(0xC8);
+    Code.Insert(0x48);
+    Code.Insert(0x83);
+    Code.Insert(0xF9);
+    Code.Insert(0x01);
+    Code.Insert(0x75);
+    Code.Insert(0x09);
+    Code.Insert(0x4D);
+    Code.Insert(0x31);
+    Code.Insert(0xC9);
+    Code.Insert(0x49);
+    Code.Insert(0x29);
+    Code.Insert(0xC1);
     Code.Insert(0x4C);
     Code.Insert(0x89);
     Code.Insert(0xC8);
     Code.Insert(0x48);
     Code.Insert(0x83);
     Code.Insert(0xC4);
-    Code.Insert(0x08);
+    Code.Insert(0x10);
     Code.Insert(0x48);
     Code.Insert(0x89);
     Code.Insert(0xEC);
     Code.Insert(0x5D);
+    Code.Insert(0x59);
     Code.Insert(0x5A);
     Code.Insert(0x41);
     Code.Insert(0x59);
@@ -524,207 +616,245 @@ void Scan_x86()
     Code.Insert(0x50);
 }
 
-void Print_x86()// Изменить получение переменной
+void Print_x86()
 {
     Code.Insert(0x58);
     Code.Insert(0x55);
     Code.Insert(0x48);
     Code.Insert(0x89);
-    Code.Insert(0xE5);
+    Code.Insert(0xe5);
     Code.Insert(0x48);
     Code.Insert(0x83);
-    Code.Insert(0xEC);
+    Code.Insert(0xec);
     Code.Insert(0x08);
-    Code.Insert(0x48);
+    Code.Insert(0x4d);
     Code.Insert(0x31);
-    Code.Insert(0xC9);
-    Code.Insert(0xBB);
-    Code.Insert(0x0A);
+    Code.Insert(0xff);
+    Code.Insert(0xbb);
+    Code.Insert(0x0a);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x48);
     Code.Insert(0x83);
-    Code.Insert(0xF8);
+    Code.Insert(0xf8);
     Code.Insert(0x00);
     Code.Insert(0x74);
     Code.Insert(0x25);
     Code.Insert(0x48);
-    Code.Insert(0x3D);
-    Code.Insert(0xFE);
-    Code.Insert(0xFF);
-    Code.Insert(0xFF);
-    Code.Insert(0x7F);
+    Code.Insert(0x3d);
+    Code.Insert(0xfe);
+    Code.Insert(0xff);
+    Code.Insert(0xff);
+    Code.Insert(0x7f);
     Code.Insert(0x77);
     Code.Insert(0x22);
     Code.Insert(0x48);
     Code.Insert(0x31);
-    Code.Insert(0xD2);
+    Code.Insert(0xd2);
     Code.Insert(0x48);
-    Code.Insert(0xF7);
-    Code.Insert(0xF3);
+    Code.Insert(0xf7);
+    Code.Insert(0xf3);
     Code.Insert(0x48);
     Code.Insert(0x39);
-    Code.Insert(0xD0);
+    Code.Insert(0xd0);
     Code.Insert(0x74);
-    Code.Insert(0x42);
+    Code.Insert(0x65);
     Code.Insert(0x48);
     Code.Insert(0x83);
-    Code.Insert(0xC2);
+    Code.Insert(0xc2);
     Code.Insert(0x30);
     Code.Insert(0x49);
     Code.Insert(0x89);
-    Code.Insert(0xE1);
-    Code.Insert(0x49);
+    Code.Insert(0xe1);
+    Code.Insert(0x4d);
     Code.Insert(0x01);
-    Code.Insert(0xC9);
+    Code.Insert(0xf9);
     Code.Insert(0x41);
     Code.Insert(0x88);
     Code.Insert(0x11);
-    Code.Insert(0x48);
-    Code.Insert(0xFF);
-    Code.Insert(0xC1);
-    Code.Insert(0xEB);
-    Code.Insert(0xE3);
-    Code.Insert(0x48);
-    Code.Insert(0x89);
-    Code.Insert(0xC2);
-    Code.Insert(0xEB);
-    Code.Insert(0xE9);
+    Code.Insert(0x49);
+    Code.Insert(0xff);
+    Code.Insert(0xc7);
+    Code.Insert(0xeb);
+    Code.Insert(0xe3);
     Code.Insert(0x48);
     Code.Insert(0x89);
-    Code.Insert(0xC2);
+    Code.Insert(0xc2);
+    Code.Insert(0xeb);
+    Code.Insert(0xe9);
+    Code.Insert(0x48);
+    Code.Insert(0x89);
+    Code.Insert(0xc2);
     Code.Insert(0x48);
     Code.Insert(0x31);
-    Code.Insert(0xC0);
+    Code.Insert(0xc0);
     Code.Insert(0x48);
     Code.Insert(0x29);
-    Code.Insert(0xD0);
+    Code.Insert(0xd0);
     Code.Insert(0x48);
     Code.Insert(0x89);
-    Code.Insert(0xE6);
-    Code.Insert(0xC7);
+    Code.Insert(0xe6);
+    Code.Insert(0xc7);
     Code.Insert(0x04);
     Code.Insert(0x24);
-    Code.Insert(0x2D);
+    Code.Insert(0x2d);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x50);
-    Code.Insert(0xB8);
+    Code.Insert(0xb8);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0xBF);
+    Code.Insert(0xbf);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0xBA);
+    Code.Insert(0xba);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0x0F);
+    Code.Insert(0x0f);
     Code.Insert(0x05);
     Code.Insert(0x58);
-    Code.Insert(0x48);
+    Code.Insert(0x4d);
     Code.Insert(0x31);
-    Code.Insert(0xC9);
-    Code.Insert(0xEB);
-    Code.Insert(0xB3);
+    Code.Insert(0xff);
+    Code.Insert(0xeb);
+    Code.Insert(0xb3);
+    Code.Insert(0xb8);
+    Code.Insert(0x01);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0xba);
+    Code.Insert(0x01);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0xbf);
+    Code.Insert(0x01);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x49);
+    Code.Insert(0x89);
+    Code.Insert(0xe2);
+    Code.Insert(0x4d);
+    Code.Insert(0x01);
+    Code.Insert(0xea);
+    Code.Insert(0x49);
+    Code.Insert(0xff);
+    Code.Insert(0xc2);
+    Code.Insert(0x41);
+    Code.Insert(0xc6);
+    Code.Insert(0x02);
+    Code.Insert(0x2e);
+    Code.Insert(0x4c);
+    Code.Insert(0x89);
+    Code.Insert(0xd6);
+    Code.Insert(0x0f);
+    Code.Insert(0x05);
+    Code.Insert(0xeb);
+    Code.Insert(0x0f);
     Code.Insert(0x48);
     Code.Insert(0x83);
-    Code.Insert(0xF8);
+    Code.Insert(0xf8);
     Code.Insert(0x00);
     Code.Insert(0x75);
-    Code.Insert(0xB8);
-    Code.Insert(0xB8);
+    Code.Insert(0x95);
+    Code.Insert(0x4d);
+    Code.Insert(0x89);
+    Code.Insert(0xfd);
+    Code.Insert(0x49);
+    Code.Insert(0x83);
+    Code.Insert(0xff);
+    Code.Insert(0x02);
+    Code.Insert(0x74);
+    Code.Insert(0xce);
+    Code.Insert(0xb8);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x48);
     Code.Insert(0x89);
-    Code.Insert(0xE6);
+    Code.Insert(0xe6);
+    Code.Insert(0x4c);
+    Code.Insert(0x01);
+    Code.Insert(0xfe);
     Code.Insert(0x48);
-    Code.Insert(0x01);
-    Code.Insert(0xCE);
-    Code.Insert(0x48);
-    Code.Insert(0xFF);
-    Code.Insert(0xCE);
-    Code.Insert(0xBF);
+    Code.Insert(0xff);
+    Code.Insert(0xce);
+    Code.Insert(0xbf);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0xBA);
+    Code.Insert(0xba);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0x51);
-    Code.Insert(0x0F);
+    Code.Insert(0x0f);
     Code.Insert(0x05);
-    Code.Insert(0x59);
-    Code.Insert(0x48);
-    Code.Insert(0xFF);
-    Code.Insert(0xC9);
-    Code.Insert(0x48);
+    Code.Insert(0x49);
+    Code.Insert(0xff);
+    Code.Insert(0xcf);
+    Code.Insert(0x49);
     Code.Insert(0x83);
-    Code.Insert(0xF9);
+    Code.Insert(0xff);
     Code.Insert(0x00);
     Code.Insert(0x75);
-    Code.Insert(0xDB);
+    Code.Insert(0xd7);
     Code.Insert(0x48);
     Code.Insert(0x89);
-    Code.Insert(0xE6);
-    Code.Insert(0xC7);
+    Code.Insert(0xe6);
+    Code.Insert(0xc7);
     Code.Insert(0x04);
     Code.Insert(0x24);
-    Code.Insert(0x0D);
+    Code.Insert(0x0d);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0xBF);
+    Code.Insert(0xb8);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0xBF);
+    Code.Insert(0xbf);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0xBA);
+    Code.Insert(0xba);
     Code.Insert(0x01);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0x0F);
+    Code.Insert(0x0f);
     Code.Insert(0x05);
-    Code.Insert(0xC7);
+    Code.Insert(0xc7);
     Code.Insert(0x04);
     Code.Insert(0x24);
-    Code.Insert(0x0A);
+    Code.Insert(0x0a);
     Code.Insert(0x00);
     Code.Insert(0x00);
     Code.Insert(0x00);
-    Code.Insert(0x0F);
+    Code.Insert(0x0f);
     Code.Insert(0x05);
     Code.Insert(0x48);
     Code.Insert(0x83);
-    Code.Insert(0xC4);
-    Code.Insert(0x08);
+    Code.Insert(0xc4);
+    Code.Insert(0x10);
     Code.Insert(0x48);
     Code.Insert(0x89);
-    Code.Insert(0xEC);
-    Code.Insert(0x5D);
-
-
-
-
+    Code.Insert(0xec);
+    Code.Insert(0x5d);
 }
 
 
@@ -754,24 +884,21 @@ void sub()
 
 void mul()
 {
-    Code.Insert(0x5B); //pop rbx
-    Code.Insert(0x58); //pop rax
+    Code.Insert(0x6A); //push 100
+    Code.Insert(0x64);
 
-    Code.Insert(72); // mul rbx
-    Code.Insert(247);
-    Code.Insert(227);
-
-    Code.Insert(0x50); // push rax
-}
-
-void div() {
     Code.Insert(0x9B); //wait
 
     Code.Insert(0xDB); //fninit
     Code.Insert(0xE3);
 
-    Code.Insert(0xDB); // fild dword [rsp + 8]
+    Code.Insert(0xDB); //fild dword [rsp + 16]
     Code.Insert(0x44);
+    Code.Insert(0x24);
+    Code.Insert(0x10);
+
+    Code.Insert(0xDA);  //fimul dword [rsp + 8]
+    Code.Insert(0x4C);
     Code.Insert(0x24);
     Code.Insert(0x08);
 
@@ -779,13 +906,88 @@ void div() {
     Code.Insert(0x34);
     Code.Insert(0x24);
 
-    Code.Insert(0x9B); //fwait
+    Code.Insert(0x48); //add rsp, 16
+    Code.Insert(0x83);
+    Code.Insert(0xC4);
+    Code.Insert(0x10);
 
-    Code.Insert(0x41); //pop r11
-    Code.Insert(0x5B);
+    Code.Insert(0x48); //mov qword [rsp], 0
+    Code.Insert(0xC7);
+    Code.Insert(0x04);
+    Code.Insert(0x24);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
 
-    Code.Insert(0xDB);//fist dword [rsp]
+    Code.Insert(0xDB); //fist dword [rsp]
     Code.Insert(0x14);
+    Code.Insert(0x24);
+
+    Code.Insert(0x4C); //movsx r11, dword [rsp]
+    Code.Insert(0x63);
+    Code.Insert(0x1C);
+    Code.Insert(0x24);
+
+    Code.Insert(0x4C); //mov qword [rsp], r11
+    Code.Insert(0x89);
+    Code.Insert(0x1C);
+    Code.Insert(0x24);
+
+}
+
+void div() {
+    Code.Insert(0x6A); //push 100
+    Code.Insert(0x64);
+
+    Code.Insert(0x9B); //wait
+
+    Code.Insert(0xDB); //fninit
+    Code.Insert(0xE3);
+
+    Code.Insert(0xDB); //fild dword [rsp + 16]
+    Code.Insert(0x44);
+    Code.Insert(0x24);
+    Code.Insert(0x10);
+
+    Code.Insert(0xDA); //fild dword [rsp + 8]
+    Code.Insert(0x74);
+    Code.Insert(0x24);
+    Code.Insert(0x08);
+
+    Code.Insert(0xDA); // fimul dword [rsp]
+    Code.Insert(0x0C);
+    Code.Insert(0x24);
+
+    Code.Insert(0xD9); //frndint
+    Code.Insert(0xFC);
+
+    Code.Insert(0x48); //add rsp, 16
+    Code.Insert(0x83);
+    Code.Insert(0xC4);
+    Code.Insert(0x10);
+
+    Code.Insert(0x48); //mov qword [rsp], 0
+    Code.Insert(0xC7);
+    Code.Insert(0x04);
+    Code.Insert(0x24);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+    Code.Insert(0x00);
+
+    Code.Insert(0xDB); //fist dword [rsp]
+    Code.Insert(0x14);
+    Code.Insert(0x24);
+
+    Code.Insert(0x4C); //movsx r11, dword [rsp]
+    Code.Insert(0x63);
+    Code.Insert(0x1C);
+    Code.Insert(0x24);
+
+    Code.Insert(0x4C); //mov qword [rsp], r11
+    Code.Insert(0x89);
+    Code.Insert(0x1C);
     Code.Insert(0x24);
 }
 
@@ -919,6 +1121,4 @@ void Make_ELF()
     Code.Insert(0);
     Code.Insert(0);
     Code.Insert(0);
-
 }
-
