@@ -2,7 +2,6 @@
 #define LANGUAGE_BACKEND_X86_H
 
 #include "Language.h"
-#include <map>
 #include <string>
 
 #define NLD Node->Left->Elem->ElemData
@@ -43,6 +42,7 @@ public:
         }
         return NoSuchVars;
     }
+
 };
 
 
@@ -92,7 +92,7 @@ public:
         FILE *Output = fopen(Out, "w");
         assert(Output);
 
-        Exit();
+        Fill_Calls();
 
         Data[97] = Size % 256;
         Data[98] = Size / 256;
@@ -102,6 +102,16 @@ public:
         fwrite(Data, sizeof(char), Size, Output);
 
         fclose(Output);
+    }
+
+    void Fill_Calls()
+    {
+        for (int NumFunc = 0; NumFunc < Num_Func; NumFunc++) {
+            for (int Num_Call = 0; Num_Call < Function[NumFunc].Call_Amount; Num_Call++) {
+                Edit_Address(Function[NumFunc].Address - Function[NumFunc].Calls[Num_Call],
+                                Function[NumFunc].Calls[Num_Call] - 4);
+            }
+        }
     }
 
     void Exit()
@@ -189,12 +199,11 @@ void Backend_x86(Branch *Root);
 void System_OP_Switch_x86(Branch *Node);
 void Functions_x86(Branch *Node);
 void Ret_x86(Branch *Node);
-void Math_OP_x86(int ElemData);
+void Number_x86(Branch *Node);
+void Math_OP_x86(Branch *Node);
 void Compare_x86();
 void Variables_x86(Branch *Node);
 void Assignment_x86(Branch *Node);
-void Scan_Variables(Branch *Node, unsigned &Shift, std::map<char*, int> &Variables);
-void Mem_For_Var(int NumOfVar);
 void Math_Func_x86(Branch *Node);
 void Print_x86();
 void Scan_x86();
